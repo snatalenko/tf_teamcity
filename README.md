@@ -3,7 +3,7 @@ Teamcity Server/Agent Deployment Terraform Module
 
 This module can be used to deploy a teamcity server and one or multiple build agents to your terraform-managed infrastructure:
 
-```json
+```js
 {
     "module": {
         "buildserver": {
