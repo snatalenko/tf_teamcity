@@ -1,0 +1,40 @@
+[
+    {
+        "name": "server",
+        "image": "${image}",
+        "memoryReservation": 995,
+        "essential": true,
+        "portMappings": [
+            {
+                "hostPort": 80,
+                "containerPort": 8111,
+                "protocol": "tcp"
+            }
+        ],
+        "mountPoints": [
+            {
+                "containerPath": "/data/teamcity_server/datadir",
+                "sourceVolume": "teamcity-data",
+                "readOnly": false
+            },
+            {
+                "containerPath": "/opt/teamcity/logs",
+                "sourceVolume": "teamcity-logs",
+                "readOnly": false
+            }
+        ],
+        "environment": [
+            {
+                "name": "TEAMCITY_SERVER_MEM_OPTS",
+                "value": "-Xmx750m -XX:MaxPermSize=270m"
+            }
+        ],
+        "logConfiguration": {
+            "logDriver": "awslogs",
+            "options": {
+                "awslogs-group": "${log_group}",
+                "awslogs-region": "${log_region}"
+            }
+        }
+    }
+]

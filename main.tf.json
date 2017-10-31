@@ -1,0 +1,248 @@
+{
+    "variable": {
+        "app": {
+            "description": "Short application name to use as component names prefix (e.g. myapp)",
+            "default": "teamcity"
+        },
+        "region": {
+            "default": "us-east-1",
+            "description": "AWS region where the TeamCity instances should be created"
+        },
+        "aws_account_id": {
+            "description": "AWS account ID to use in docker repository prefix"
+        },
+        "vpc_id": {},
+        "subnet_id": {},
+        "trusted_cidr": {
+            "description": "Coma-separated list of trusted CIDR blocks for access to TeamCity UI",
+            "default": "10.0.0.0/16"
+        },
+        "admin_cidr": {
+            "description": "Coma-separated list of trusted CIDR blocks for access to TeamCity SSH",
+            "default": "10.0.0.0/16"
+        },
+        "server_image": {
+            "default": "jetbrains/teamcity-server:2017.1.5"
+        },
+        "server_cluster_id": {
+            "description": "ECS cluster ID for Teamcity Server task deployment"
+        },
+        "server_hostname": {
+            "description": "Server instance hostname for agent-to-server connection",
+            "default": "localhost"
+        },
+        "agent_cluster_id": {
+            "description": "ECS cluster ID for Teamcity Agent task(s) deployment"
+        },
+        "agent_image": {
+            "default": "snatalenko/teamcity-nodejs-agent:2017.1.5"
+        },
+        "agents_count": {
+            "default": 1
+        }
+    },
+    "resource": {
+        "template_file": {
+            "server": {
+                "template": "${file(\"${path.module}/tasks/server.json\")}",
+                "vars": {
+                    "image": "${var.server_image}",
+                    "log_group": "${aws_cloudwatch_log_group.server.name}",
+                    "log_region": "${var.region}"
+                }
+            },
+            "agent": {
+                "template": "${file(\"${path.module}/tasks/agent.json\")}",
+                "vars": {
+                    "image": "${var.agent_image}",
+                    "server_url": "http://${var.server_hostname}",
+                    "log_group": "${aws_cloudwatch_log_group.agent.name}",
+                    "log_region": "${var.region}"
+                }
+            }
+        },
+        "aws_ecs_task_definition": {
+            "server": {
+                "family": "${var.app}-server",
+                "container_definitions": "${template_file.server.rendered}",
+                "volume": [
+                    {
+                        "name": "teamcity-data",
+                        "host_path": "/ecs/teamcity-data"
+                    },
+                    {
+                        "name": "teamcity-logs",
+                        "host_path": "/ecs/teamcity-logs"
+                    }
+                ]
+            },
+            "agent": {
+                "family": "${var.app}-agent",
+                "container_definitions": "${template_file.agent.rendered}",
+                "volume": [
+                    {
+                        "name": "teamcity-docker-sock",
+                        "host_path": "/var/run/docker.sock"
+                    },
+                    {
+                        "name": "teamcity-agent-conf",
+                        "host_path": "/ecs/teamcity-agent-conf"
+                    }
+                ]
+            }
+        },
+        "aws_ecs_service": {
+            "server": {
+                "name": "${var.app}-server",
+                "cluster": "${var.server_cluster_id}",
+                "task_definition": "${aws_ecs_task_definition.server.arn}",
+                "desired_count": 1,
+                "deployment_maximum_percent": 100,
+                "deployment_minimum_healthy_percent": 0
+            },
+            "agent": {
+                "name": "${var.app}-agent",
+                "cluster": "${var.agent_cluster_id}",
+                "task_definition": "${aws_ecs_task_definition.agent.arn}",
+                "desired_count": "${var.agents_count}",
+                "deployment_maximum_percent": 100,
+                "deployment_minimum_healthy_percent": 0
+            }
+        },
+        "aws_iam_role": {
+            "buildserver": {
+                "name": "${var.app}",
+                "assume_role_policy": "${file(\"${path.module}/policies/assume-role.json\")}"
+            }
+        },
+        "aws_iam_role_policy": {
+            "container-management": {
+                "name": "container-management",
+                "role": "${aws_iam_role.buildserver.id}",
+                "policy": "${file(\"${path.module}/policies/container-management.json\")}"
+            },
+            "registry-upload": {
+                "name": "registry-upload",
+                "role": "${aws_iam_role.buildserver.id}",
+                "policy": "${file(\"${path.module}/policies/registry-upload.json\")}"
+            },
+            "log-writer": {
+                "name": "log-writer",
+                "role": "${aws_iam_role.buildserver.id}",
+                "policy": "${file(\"${path.module}/policies/log-writer.json\")}"
+            },
+            "lambda-update": {
+                "name": "lambda-update",
+                "role": "${aws_iam_role.buildserver.id}",
+                "policy": "${file(\"${path.module}/policies/lambda-update.json\")}"
+            },
+            "ecs-task-update": {
+                "name": "ecs-task-update",
+                "role": "${aws_iam_role.buildserver.id}",
+                "policy": "${file(\"${path.module}/policies/ecs-task-update.json\")}"
+            }
+        },
+        "aws_iam_instance_profile": {
+            "buildserver": {
+                "name": "${var.app}",
+                "role": "${aws_iam_role.buildserver.name}"
+            }
+        },
+        "aws_cloudwatch_log_group": {
+            "server": {
+                "name": "${var.app}-server",
+                "retention_in_days": 90
+            },
+            "agent": {
+                "name": "${var.app}-agent",
+                "retention_in_days": 90
+            }
+        },
+        "aws_security_group": {
+            "buildserver": {
+                "name": "buildserver",
+                "vpc_id": "${var.vpc_id}",
+                "ingress": [
+                    {
+                        "from_port": 22,
+                        "to_port": 22,
+                        "protocol": "tcp",
+                        "cidr_blocks": [
+                            "${split(\",\", var.admin_cidr)}"
+                        ]
+                    },
+                    {
+                        "from_port": 80,
+                        "to_port": 80,
+                        "protocol": "tcp",
+                        "cidr_blocks": [
+                            "${split(\",\", var.trusted_cidr)}"
+                        ]
+                    },
+                    {
+                        "from_port": 80,
+                        "to_port": 80,
+                        "protocol": "tcp",
+                        "self": true
+                    },
+                    {
+                        "from_port": 9090,
+                        "to_port": 9090,
+                        "protocol": "tcp",
+                        "self": true
+                    }
+                ],
+                "egress": [
+                    {
+                        "from_port": 22,
+                        "to_port": 22,
+                        "protocol": "tcp",
+                        "cidr_blocks": [
+                            "0.0.0.0/0"
+                        ]
+                    },
+                    {
+                        "from_port": 80,
+                        "to_port": 80,
+                        "protocol": "tcp",
+                        "cidr_blocks": [
+                            "0.0.0.0/0"
+                        ]
+                    },
+                    {
+                        "from_port": 443,
+                        "to_port": 443,
+                        "protocol": "tcp",
+                        "cidr_blocks": [
+                            "0.0.0.0/0"
+                        ]
+                    },
+                    {
+                        "from_port": 80,
+                        "to_port": 80,
+                        "protocol": "tcp",
+                        "self": true
+                    },
+                    {
+                        "from_port": 9090,
+                        "to_port": 9090,
+                        "protocol": "tcp",
+                        "self": true
+                    }
+                ],
+                "tags": {
+                    "Name": "${var.app}-teamcity",
+                    "Application": "${var.app}"
+                }
+            }
+        }
+    },
+    "output": {
+        "security_group_id": {
+            "value": "${aws_security_group.buildserver.id}"
+        },
+        "instance_profile_name": {
+            "value": "${aws_iam_instance_profile.buildserver.name}"
+        }
+    }
+}

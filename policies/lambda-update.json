@@ -1,0 +1,20 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "lambda:GetFunction",
+                "lambda:CreateFunction",
+                "lambda:CreateAlias",
+                "lambda:UpdateFunctionCode",
+                "lambda:UpdateFunctionConfiguration",
+                "lambda:UpdateAlias",
+                "lambda:PublishVersion"
+            ],
+            "Resource": [
+                "*"
+            ]
+        }
+    ]
+}

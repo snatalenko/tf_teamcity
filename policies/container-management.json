@@ -1,0 +1,21 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "ecs:StartTelemetrySession",
+                "ecs:DeregisterContainerInstance",
+                "ecs:DiscoverPollEndpoint",
+                "ecs:Poll",
+                "ecs:RegisterContainerInstance",
+                "ecs:Submit*",
+                "ecs:ListTasks",
+                "ecs:StopTask"
+            ],
+            "Resource": [
+                "*"
+            ]
+        }
+    ]
+}

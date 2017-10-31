@@ -1,0 +1,46 @@
+[
+    {
+        "name": "agent",
+        "image": "${image}",
+        "memoryReservation": 995,
+        "essential": true,
+        "privileged": true,
+        "networkMode": "host",
+        "portMappings": [
+            {
+                "hostPort": 9090,
+                "containerPort": 9090,
+                "protocol": "tcp"
+            }
+        ],
+        "environment": [
+            {
+                "name": "SERVER_URL",
+                "value": "${server_url}"
+            },
+            {
+                "name": "TEAMCITY_AGENT_MEM_OPTS",
+                "value": "-Xmx1024m -XX:MaxPermSize=270m"
+            }
+        ],
+        "mountPoints": [
+            {
+                "containerPath": "/var/run/docker.sock",
+                "sourceVolume": "teamcity-docker-sock",
+                "readOnly": false
+            }, 
+            {
+                "containerPath": "/data/teamcity_agent/conf",
+                "sourceVolume": "teamcity-agent-conf",
+                "readOnly": false
+            }
+        ],
+        "logConfiguration": {
+            "logDriver": "awslogs",
+            "options": {
+                "awslogs-group": "${log_group}",
+                "awslogs-region": "${log_region}"
+            }
+        }
+    }
+]
